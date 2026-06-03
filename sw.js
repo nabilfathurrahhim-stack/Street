@@ -1,9 +1,7 @@
-const CACHE_NAME = 'blueride-v1';
+const CACHE_NAME = 'blueride-v2';
 const assets = [
   './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './manifest.json'
 ];
 
 self.addEventListener('install', e => {
@@ -21,4 +19,3 @@ self.addEventListener('fetch', e => {
     })
   );
 });
-
