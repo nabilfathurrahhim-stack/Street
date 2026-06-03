@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlueRide - Premium Moto Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #070a13;
+            color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        /* Mode Gelap untuk Peta Leaflet */
+        .leaflet-layer, .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+            filter: invert(100%) hue-rotate(180deg) brightness(90%) contrast(95%);
+        }
+        .text-blueride { color: #00e5ff; }
+        .bg-blueride { background-color: #00e5ff; }
+        .border-blueride { border-color: #00e5ff; }
+        #map { height: 100%; width: 100%; z-index: 1; }
+        
+        /* Gaya Watermark N */
+        .watermark-n {
+            font-family: 'Georgia', serif;
+            font-weight: 900;
+            font-style: italic;
+            background: linear-gradient(135deg, rgba(0, 229, 255, 0.15) 0%, rgba(0, 229, 255, 0.02) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 14rem;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+
+    <header class="bg-[#0f1424] border-b border-gray-800 px-4 py-3 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center space-x-2">
+            <i data-lucide="waves" class="w-6 h-6 text-blueride animate-pulse"></i>
+            <span class="text-xl font-black tracking-tighter">BLUE🦈<span class="text-blueride">RIDE</span></span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <div id="status-badge" class="text-xs bg-[#171f38] text-gray-400 px-3 py-1 rounded-full font-semibold border border-gray-700 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-gray-500 block" id="status-dot"></span>
+                <span id="status-text">Ready</span>
+            </div>
+            <span class="text-lg font-serif font-black italic text-blueride/40 border border-blueride/20 rounded px-1.5 leading-none">N</span>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <div class="absolute inset-0">
+            <div id="map"></div>
+        </div>
+
+        <div class="absolute inset-0 flex items-center justify-center z-5 pointer-events-none opacity-40">
+            <div class="watermark-n">N</div>
+        </div>
+
+        <div class="absolute top-4 left-4 right-4 z-10 grid grid-cols-3 gap-2 pointer-events-none">
+            <div class="bg-[#070a13]/85 backdrop-blur-md p-3 rounded-2xl border border-gray-800 shadow-xl text-center">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Top Speed</p>
+                <p class="text-xl font-black text-white"><span id="top-speed">0</span><span class="text-[10px] font-normal text-gray-400 ml-0.5">km/h</span></p>
+            </div>
+            <div class="bg-[#070a13]/85 backdrop-blur-md p-3 rounded-2xl border border-gray-800 shadow-xl text-center">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Horsepower</p>
+                <p class="text-xl font-black text-blueride"><span id="horsepower">0</span><span class="text-[10px] font-normal text-gray-400 ml-0.5">hp</span></p>
+            </div>
+            <div class="bg-[#070a13]/85 backdrop-blur-md p-3 rounded-2xl border border-gray-800 shadow-xl text-center">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Jarak</p>
+                <p class="text-xl font-black text-white"><span id="distance">0.0</span><span class="text-[10px] font-normal text-gray-400 ml-0.5">km</span></p>
+            </div>
+        </div>
+
+        <div class="absolute bottom-6 left-4 right-4 z-10 flex flex-col gap-3">
+            <div class="flex gap-3">
+                <button id="btn-start" class="flex-1 bg-blueride hover:bg-cyan-400 text-black font-black py-4 rounded-2xl shadow-2xl transition duration-200 flex items-center justify-center gap-2 text-base tracking-wide cursor-pointer">
+                    <i data-lucide="play" class="fill-current w-5 h-5"></i> MULAI RIDE
+                </button>
+                <button id="btn-stop" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl shadow-2xl transition duration-200 hidden items-center justify-center gap-2 text-base tracking-wide cursor-pointer">
+                    <i data-lucide="square" class="fill-current w-5 h-5"></i> BERAKHIR
+                </button>
+            </div>
+            <button id="btn-download" class="w-full bg-[#171f38]/90 backdrop-blur-md border border-gray-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition duration-200 hidden items-center justify-center gap-2 text-sm cursor-pointer">
+                <i data-lucide="download" class="w-4 h-4"></i> Download Ringkasan (.PNG)
+            </button>
+        </div>
+
+    </main>
+
+    <div id="hidden-capture-card" class="fixed -top-[9999px] -left-[9999px]">
+        <div style="width: 450px; background-color: #070a13; color: #ffffff; padding: 30px; border-radius: 24px; border: 2px solid #171f38; font-family: sans-serif; position: relative; overflow: hidden;">
+            
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0; opacity: 0.06; pointer-events: none;">
+                <span style="font-family: 'Georgia', serif; font-weight: 900; font-style: italic; font-size: 260px; color: #00e5ff;">N</span>
+            </div>
+
+            <div style="position: relative; z-index: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-b: 1px solid #171f38; padding-bottom: 15px;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -1px;">BLUE🦈<span style="color: #00e5ff;">RIDE</span></h2>
+                        <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Premium Moto Tracker</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-family: 'Georgia', serif; font-weight: 900; font-style: italic; font-size: 28px; color: rgba(0, 229, 255, 0.4); border: 1px solid rgba(0, 229, 255, 0.2); padding: 0px 10px; border-radius: 8px;">N</span>
+                    </div>
+                </div>
+
+                <div style="width: 100%; height: 160px; background-color: #0f1424; border: 1px solid #171f38; border-radius: 16px; margin-bottom: 25px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                    <div style="position: absolute; top: 10px; left: 12px; font-size: 10px; color: #6b7280; font-weight: bold; letter-spacing: 0.5px;">JALUR MAPS YANG DILALUI:</div>
+                    <svg id="svg-route-container" style="width: 85%; height: 70%;" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                        <path id="svg-route-path" d="" fill="none" stroke="#00e5ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div id="svg-empty-msg" style="position: absolute; font-size: 11px; color: #4b5563;">Tidak ada pergerakan rute tercatat</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                    <div style="flex: 1; background-color: #0f1424; padding: 15px; border-radius: 16px; text-align: center; border: 1px solid #171f38;">
+                        <p style="margin: 0 0 6px 0; font-size: 10px; color: #9ca3af; font-weight: bold; text-transform: uppercase;">Top Speed</p>
+                        <p style="margin: 0; font-size: 24px; font-weight: 900;" id="cap-top">0 <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">km/h</span></p>
+                    </div>
+                    <div style="flex: 1; background-color: #0f1424; padding: 15px; border-radius: 16px; text-align: center; border: 1px solid #00e5ff;">
+                        <p style="margin: 0 0 6px 0; font-size: 10px; color: #00e5ff; font-weight: bold; text-transform: uppercase;">Horsepower</p>
+                        <p style="margin: 0; font-size: 24px; font-weight: 900; color: #00e5ff;" id="cap-hp">0 <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">hp</span></p>
+                    </div>
+                    <div style="flex: 1; background-color: #0f1424; padding: 15px; border-radius: 16px; text-align: center; border: 1px solid #171f38;">
+                        <p style="margin: 0 0 6px 0; font-size: 10px; color: #9ca3af; font-weight: bold; text-transform: uppercase;">Jarak</p>
+                        <p style="margin: 0; font-size: 24px; font-weight: 900;" id="cap-dist">0.0 <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">km</span></p>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-t: 1px solid #171f38; font-size: 10px; color: #6b7280;">
+                    <p style="margin: 0;">RIDE WITH THE SPEED OF A SHARK</p>
+                    <p style="margin: 0; font-weight: bold; color: #00e5ff;">#BlueRideTrack</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        lucide.createIcons();
+
+        let watchId = null;
+        let ruteKoordinat = [];
+        let maxSpeed = 0;
+        let totalDistance = 0;
+        let lastPosition = null;
+
+        // 1. SETUP MAPS
+        const map = L.map('map', { 
+            zoomControl: true,
+            touchZoom: true,
+            scrollWheelZoom: true
+        }).setView([-6.2088, 106.8456], 15);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        const polyline = L.polyline([], { color: '#00e5ff', weight: 6, opacity: 0.9 }).addTo(map);
+        const markerUser = L.circleMarker([0, 0], { color: '#00e5ff', radius: 8, fillColor: '#ffffff', fillOpacity: 1 }).addTo(map);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const pos = [position.coords.latitude, position.coords.longitude];
+                map.setView(pos, 16);
+                markerUser.setLatLng(pos);
+            }, () => {}, { enableHighAccuracy: true });
+        }
+
+        function hitungJarak(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function estimasiHorsepower(speedKmh) {
+            if (speedKmh <= 0) return 0;
+            return Math.min(Math.round((speedKmh * 0.28)), 60); 
+        }
+
+        // 2. GENERATOR KANVAS JALUR MAPS UNTUK DOWNLOAD
+        function renderGarisRuteKeSVG() {
+            if (ruteKoordinat.length < 2) {
+                document.getElementById('svg-empty-msg').style.display = "block";
+                document.getElementById('svg-route-path').setAttribute("d", "");
+                return;
+            }
+            document.getElementById('svg-empty-msg').style.display = "none";
+
+            // Cari nilai koordinat Min & Max untuk melakukan kalkulasi rasio kecocokan kotak gambar
+            let lats = ruteKoordinat.map(p => p[0]);
+            let lons = ruteKoordinat.map(p => p[1]);
+            let minLat = Math.min(...lats), maxLat = Math.max(...lats);
+            let minLon = Math.min(...lons), maxLon = Math.max(...lons);
+
+            let latRange = maxLat - minLat || 0.0001;
+            let lonRange = maxLon - minLon || 0.0001;
+
+            // Terjemahkan koordinat GPS bumi menjadi titik koordinat piksel gambar (Skala 5-95 agar aman tidak mentok)
+            let dString = "";
+            ruteKoordinat.forEach((pos, index) => {
+                let x = 5 + ((pos[1] - minLon) / lonRange) * 90;
+                let y = 95 - ((pos[0] - minLat) / latRange) * 90; // Sumbu Y dibalik karena koordinat piksel komputer mengarah ke bawah
+                
+                if (index === 0) dString += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+                else dString += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+            });
+
+            document.getElementById('svg-route-path').setAttribute("d", dString);
+        }
+
+        // 3. LOGIKA PELACAKAN GPS REAL-TIME
+        function updateLokasi(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const pos = [lat, lon];
+
+            let speed = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0;
+            if (speed < 2) speed = 0; 
+
+            if (speed > maxSpeed) {
+                maxSpeed = speed;
+                document.getElementById('top-speed').innerText = maxSpeed;
+                document.getElementById('horsepower').innerText = estimasiHorsepower(maxSpeed);
+            }
+
+            if (lastPosition) {
+                const jarakBaru = hitungJarak(lastPosition.lat, lastPosition.lon, lat, lon);
+                if (jarakBaru > 0.003) { 
+                    totalDistance += jarakBaru;
+                    document.getElementById('distance').innerText = totalDistance.toFixed(1);
+                }
+            }
+
+            lastPosition = { lat, lon };
+            ruteKoordinat.push(pos);
+            
+            polyline.setLatLngs(ruteKoordinat);
+            markerUser.setLatLng(pos);
+            map.panTo(pos); 
+        }
+
+        function handleGpsError(err) {
+            alert("Akses GPS gagal. Mohon pastikan GPS perangkat Anda menyala aktif!");
+        }
+
+        // 4. TOMBOL KONTROL
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const btnDownload = document.getElementById('btn-download');
+
+        btnStart.addEventListener('click', () => {
+            if (!navigator.geolocation) return;
+
+            ruteKoordinat = []; maxSpeed = 0; totalDistance = 0; lastPosition = null;
+            polyline.setLatLngs([]);
+            document.getElementById('top-speed').innerText = "0";
+            document.getElementById('horsepower').innerText = "0";
+            document.getElementById('distance').innerText = "0.0";
+
+            watchId = navigator.geolocation.watchPosition(updateLokasi, handleGpsError, {
+                enableHighAccuracy: true, maximumAge: 1000, timeout: 10000
+            });
+
+            document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-emerald-500 block animate-ping";
+            document.getElementById('status-text').innerText = "Tracking Aktif";
+            btnStart.classList.add('hidden');
+            btnStop.classList.remove('hidden'); btnStop.classList.add('flex');
+            btnDownload.classList.add('hidden');
+        });
+
+        btnStop.addEventListener('click', () => {
+            if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+
+            document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-red-500 block";
+            document.getElementById('status-text').innerText = "Selesai";
+            btnStop.classList.remove('flex'); btnStop.classList.add('hidden');
+            btnStart.classList.remove('hidden');
+            btnDownload.classList.remove('hidden'); btnDownload.classList.add('flex');
+
+            // Set data teks untuk dicetak
+            document.getElementById('cap-top').innerHTML = maxSpeed + ' <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">km/h</span>';
+            document.getElementById('cap-hp').innerHTML = estimasiHorsepower(maxSpeed) + ' <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">hp</span>';
+            document.getElementById('cap-dist').innerHTML = totalDistance.toFixed(1) + ' <span style="font-size: 11px; font-weight: normal; color: #9ca3af;">km</span>';
+            
+            // Generate visual jalur peta khusus versi download
+            renderGarisRuteKeSVG();
+        });
+
+        // 5. EKSPOR PNG
+        btnDownload.addEventListener('click', () => {
+            const card = document.getElementById('hidden-capture-card');
+            html2canvas(card, { scale: 2, backgroundColor: null, logging: false }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `BlueRide_Summary_${Date.now()}.png`;
+                link.href = canvas.toDataURL("image/png");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+    </script>
+</body>
+              </html>
